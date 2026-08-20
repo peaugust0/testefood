@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cardápio Digital + PDV (estilo Foodzap, sem mensalidade)
 
-## Getting Started
+MVP completo para **uma** hamburgueria: cardápio online, **PIX na plataforma**, pedidos, fidelidade, mesas e painel admin.
 
-First, run the development server:
+## O que tem
+
+| Recurso | Onde |
+|--------|------|
+| Cardápio digital | `/` |
+| PIX com QR + Copia e Cola | checkout |
+| Mercado Pago (opcional, confirmação automática) | `.env` |
+| Pedidos + WhatsApp | `/` + `/admin` |
+| Cupons, fidelidade, mesas, relatórios | `/admin` |
+| Supabase (opcional) | `.env` + `supabase/schema.sql` |
+
+Acesso admin no cardápio: **só o emoji no canto superior direito** (sem texto "Admin").
+
+## Como rodar
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Cardápio: http://localhost:3000  
+- Admin: http://localhost:3000/admin (ou clique no emoji do canto)  
+- Senha: `admin123`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## PIX
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Em **Admin → Config**, cadastre a **chave PIX**, nome e cidade do recebedor  
+2. No checkout, o cliente escolhe PIX → vê QR Code e Copia e Cola  
+3. Clica **Já paguei** → pedido vai pro painel como "Cliente disse que pagou"  
+4. A loja confere no extrato e clica **Confirmar PIX recebido**
 
-## Learn More
+### Mercado Pago (depois)
 
-To learn more about Next.js, take a look at the following resources:
+1. Crie conta no Mercado Pago e pegue o Access Token  
+2. Coloque em `.env.local`: `MERCADOPAGO_ACCESS_TOKEN=...`  
+3. Webhook: `https://SEU-DOMINIO/api/webhooks/mercadopago`  
+Com o token, o app gera PIX pelo MP e pode confirmar sozinho quando o pagamento cair.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Supabase (opcional)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Sem `.env`, usa `data/store.json` (ok no PC da loja).
 
-## Deploy on Vercel
+Com Supabase (melhor na nuvem):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Crie um projeto em [supabase.com](https://supabase.com)  
+2. Rode o SQL de `supabase/schema.sql`  
+3. Em `.env.local`:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+
+4. Reinicie `npm run dev`
+
+## Personalizar
+
+Admin → Config: nome, WhatsApp (`5518…`), PIX, horários, senha.  
+Admin → Cardápio: produtos reais.
+
+## Não incluso ainda
+
+Robô/IA no WhatsApp, multi-restaurante.
