@@ -33,7 +33,7 @@ npm run dev
 
 - Cardápio: http://localhost:3000  
 - Admin: clique no emoji 🍔 no canto (ou `/admin`)  
-- Senha: `admin123`
+- Senha: definida em Admin → Config (não aparece no cardápio)
 
 ## O que tem
 

@@ -194,9 +194,6 @@ export default function AdminPage() {
             <ArrowLeft className="h-4 w-4" /> Cardápio
           </Link>
           <h1 className="text-xl font-bold">Painel do restaurante</h1>
-          <p className="mt-1 text-sm text-muted">
-            Senha padrão inicial: <code className="text-accent-soft">admin123</code>
-          </p>
           <input
             type="password"
             value={password}

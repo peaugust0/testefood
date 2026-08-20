@@ -18,7 +18,7 @@ export const defaultStore: StoreData = {
     pixKey: "sua-chave-pix@email.com",
     pixMerchantName: "Burger House",
     pixCity: "RIO DE JANEIRO",
-    adminPassword: "admin123",
+    adminPassword: "adm2026",
     primaryColor: "#f97316",
     bannerEmoji: "🍔",
     hours: [
