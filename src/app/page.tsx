@@ -324,7 +324,7 @@ export default function HomePage() {
   const s = store.settings;
 
   return (
-    <div className="relative mx-auto min-h-screen max-w-lg bg-bg pb-28">
+    <div className="relative mx-auto min-h-screen w-full max-w-lg overflow-x-hidden bg-bg pb-28">
       {/* Acesso admin discreto — só o emoji/logo, sem texto */}
       <Link
         href="/admin"
@@ -1080,7 +1080,7 @@ function ProductCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold leading-tight">{p.name}</h3>
+          <h3 className="break-words font-semibold leading-tight">{p.name}</h3>
           {badge && (
             <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-accent-soft">
               {badge}
