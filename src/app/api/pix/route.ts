@@ -30,30 +30,42 @@ export async function POST(request: Request) {
         email: body.email,
         externalReference: orderId || `ord_${orderNumber}`,
       });
-      if (mp?.copyPaste) {
-        const qrDataUrl = await QRCode.toDataURL(mp.copyPaste, {
-          margin: 1,
-          width: 280,
-          color: { dark: "#000000", light: "#ffffff" },
-        });
-        return NextResponse.json({
-          provider: "mercadopago",
-          copyPaste: mp.copyPaste,
-          qrDataUrl,
-          mpPaymentId: mp.id,
-          txid: mp.id,
-          autoConfirm: true,
-        });
+      if (!mp?.copyPaste) {
+        return NextResponse.json(
+          {
+            error:
+              "Mercado Pago não gerou o PIX. Confira o Access Token de produção na Vercel.",
+          },
+          { status: 502 }
+        );
       }
+      const qrDataUrl = await QRCode.toDataURL(mp.copyPaste, {
+        margin: 1,
+        width: 280,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
+      return NextResponse.json({
+        provider: "mercadopago",
+        copyPaste: mp.copyPaste,
+        qrDataUrl,
+        mpPaymentId: mp.id,
+        txid: mp.id,
+        autoConfirm: true,
+      });
     } catch (e) {
-      console.error(e);
-      // cai no PIX estático
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Erro Mercado Pago" },
+        { status: 502 }
+      );
     }
   }
 
   if (!s.pixKey) {
     return NextResponse.json(
-      { error: "Configure a chave PIX no admin (Config)" },
+      {
+        error:
+          "Mercado Pago não está ligado (falta token). Sem token, cadastre uma chave PIX real no Admin → Config.",
+      },
       { status: 400 }
     );
   }

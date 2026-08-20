@@ -17,33 +17,34 @@ async function generatePixForOrder(
   order: Order
 ) {
   if (isMercadoPagoEnabled()) {
-    try {
-      const mp = await createMercadoPagoPix({
-        amount: order.total,
-        description: `${storeSettings.name} — Pedido #${order.number}`,
-        externalReference: order.id,
-      });
-      if (mp?.copyPaste) {
-        const qrDataUrl = await QRCode.toDataURL(mp.copyPaste, {
-          margin: 1,
-          width: 280,
-        });
-        return {
-          provider: "mercadopago" as const,
-          copyPaste: mp.copyPaste,
-          qrDataUrl,
-          mpPaymentId: mp.id,
-          txid: mp.id,
-          autoConfirm: true,
-        };
-      }
-    } catch (e) {
-      console.error("MP PIX fallback:", e);
+    const mp = await createMercadoPagoPix({
+      amount: order.total,
+      description: `${storeSettings.name} — Pedido #${order.number}`,
+      externalReference: order.id,
+    });
+    if (!mp?.copyPaste) {
+      throw new Error(
+        "Mercado Pago não gerou o PIX. Confira o Access Token de produção na Vercel (APP_USR-) e faça Redeploy."
+      );
     }
+    const qrDataUrl = await QRCode.toDataURL(mp.copyPaste, {
+      margin: 1,
+      width: 280,
+    });
+    return {
+      provider: "mercadopago" as const,
+      copyPaste: mp.copyPaste,
+      qrDataUrl,
+      mpPaymentId: mp.id,
+      txid: mp.id,
+      autoConfirm: true,
+    };
   }
 
   if (!storeSettings.pixKey) {
-    throw new Error("Configure a chave PIX no Admin → Config");
+    throw new Error(
+      "Mercado Pago não está ligado neste servidor (falta MERCADOPAGO_ACCESS_TOKEN). Sem token, precisa de uma chave PIX real no Admin → Config."
+    );
   }
 
   const txid = `PED${String(order.number).slice(-12)}`;

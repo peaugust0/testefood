@@ -15,14 +15,46 @@ export function isMercadoPagoEnabled(): boolean {
   return Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN?.trim());
 }
 
+function mpToken(): string {
+  return process.env.MERCADOPAGO_ACCESS_TOKEN?.trim() ?? "";
+}
+
+function parseMpErrorBody(text: string): string {
+  try {
+    const j = JSON.parse(text) as {
+      message?: string;
+      error?: string;
+      cause?: { description?: string; code?: string }[];
+    };
+    const cause = j.cause?.map((c) => c.description || c.code).filter(Boolean).join("; ");
+    return [j.message, j.error, cause].filter(Boolean).join(" — ") || text;
+  } catch {
+    return text.slice(0, 400);
+  }
+}
+
+function requireLiveToken(token: string) {
+  if (token.startsWith("TEST-")) {
+    throw new Error(
+      "O token do Mercado Pago é de TESTE. PIX só funciona com Access Token de produção (começa com APP_USR-). Troque na Vercel e faça Redeploy."
+    );
+  }
+}
+
 export async function createMercadoPagoPix(params: {
   amount: number;
   description: string;
   email?: string;
   externalReference: string;
 }): Promise<MpPixResult | null> {
-  const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+  const token = mpToken();
   if (!token) return null;
+  requireLiveToken(token);
+
+  const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL?.trim()
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/api/webhooks/mercadopago`
+      : undefined);
 
   const res = await fetch("https://api.mercadopago.com/v1/payments", {
     method: "POST",
@@ -33,25 +65,31 @@ export async function createMercadoPagoPix(params: {
     },
     body: JSON.stringify({
       transaction_amount: Number(params.amount.toFixed(2)),
-      description: params.description,
+      description: params.description.slice(0, 255),
       payment_method_id: "pix",
       external_reference: params.externalReference,
       payer: {
-        email: params.email || "cliente@email.com",
+        email: params.email || "cliente@pedido.com",
       },
+      ...(notificationUrl ? { notification_url: notificationUrl } : {}),
     }),
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Mercado Pago: ${err}`);
+    throw new Error(`Mercado Pago: ${parseMpErrorBody(await res.text())}`);
   }
 
   const data = await res.json();
   const tx = data.point_of_interaction?.transaction_data;
+  const copyPaste = String(tx?.qr_code ?? "").trim();
+  if (!copyPaste) {
+    throw new Error(
+      "Mercado Pago não devolveu o QR PIX. Confira se a conta está verificada e com PIX de recebimento ativo no app Mercado Pago."
+    );
+  }
   return {
     id: String(data.id),
-    copyPaste: tx?.qr_code ?? "",
+    copyPaste,
     ticketUrl: tx?.ticket_url,
     status: data.status,
   };
