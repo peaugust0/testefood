@@ -1,7 +1,13 @@
 "use client";
 
 import { X } from "lucide-react";
-import type { ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 
 export function AdminModal({
   open,
@@ -54,8 +60,8 @@ export function FieldLabel({ children }: { children: ReactNode }) {
   );
 }
 
-export function TextInput(
-  props: React.InputHTMLAttributes<HTMLInputElement>
+export function FieldInput(
+  props: InputHTMLAttributes<HTMLInputElement>
 ) {
   return (
     <input
@@ -65,8 +71,8 @@ export function TextInput(
   );
 }
 
-export function TextTextarea(
-  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
+export function FieldTextarea(
+  props: TextareaHTMLAttributes<HTMLTextAreaElement>
 ) {
   return (
     <textarea
@@ -76,8 +82,8 @@ export function TextTextarea(
   );
 }
 
-export function TextSelect(
-  props: React.SelectHTMLAttributes<HTMLSelectElement>
+export function FieldSelect(
+  props: SelectHTMLAttributes<HTMLSelectElement>
 ) {
   return (
     <select
@@ -88,7 +94,7 @@ export function TextSelect(
 }
 
 export function PrimaryButton(
-  props: React.ButtonHTMLAttributes<HTMLButtonElement>
+  props: ButtonHTMLAttributes<HTMLButtonElement>
 ) {
   return (
     <button
@@ -99,7 +105,7 @@ export function PrimaryButton(
 }
 
 export function SecondaryButton(
-  props: React.ButtonHTMLAttributes<HTMLButtonElement>
+  props: ButtonHTMLAttributes<HTMLButtonElement>
 ) {
   return (
     <button

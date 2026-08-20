@@ -43,7 +43,9 @@ type Panel =
   | "checkout"
   | "hours"
   | "product"
-  | "pix";
+  | "pix"
+  | "online"
+  | "done";
 
 export default function HomePage() {
   const [store, setStore] = useState<StoreData | null>(null);
@@ -60,8 +62,14 @@ export default function HomePage() {
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [payment, setPayment] = useState<PaymentMethod>("pix");
+  const [needsChange, setNeedsChange] = useState(false);
+  const [cashChangeFor, setCashChangeFor] = useState("");
+  const [onlineCardType, setOnlineCardType] = useState<"credito" | "debito">(
+    "credito"
+  );
   const [submitting, setSubmitting] = useState(false);
   const [activeCat, setActiveCat] = useState<string>("featured");
+  const [doneOrder, setDoneOrder] = useState<Order | null>(null);
   const [pixOrder, setPixOrder] = useState<Order | null>(null);
   const [pixQr, setPixQr] = useState("");
   const [pixCopy, setPixCopy] = useState("");
@@ -69,6 +77,7 @@ export default function HomePage() {
     "static"
   );
   const [copied, setCopied] = useState(false);
+  const [onlineCheckoutUrl, setOnlineCheckoutUrl] = useState("");
 
   const cart = useCart();
 
@@ -179,6 +188,15 @@ export default function HomePage() {
       alert("Informe o endereço para entrega");
       return;
     }
+    if (payment === "dinheiro" && needsChange) {
+      const changeVal = Number(
+        cashChangeFor.replace(",", ".").replace(/[^\d.]/g, "")
+      );
+      if (!changeVal || changeVal <= total) {
+        alert("Informe um valor maior que o total para calcular o troco");
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/orders", {
@@ -192,6 +210,12 @@ export default function HomePage() {
           address: cart.fulfillment === "delivery" ? address : undefined,
           couponCode: appliedCoupon?.code,
           payment,
+          needsChange: payment === "dinheiro" && needsChange,
+          cashChangeFor:
+            payment === "dinheiro" && needsChange
+              ? Number(cashChangeFor.replace(",", ".").replace(/[^\d.]/g, ""))
+              : undefined,
+          onlineCardType: payment === "online" ? onlineCardType : undefined,
           notes,
         }),
       });
@@ -202,6 +226,11 @@ export default function HomePage() {
       }
 
       const order = data.order as Order;
+      cart.clear();
+      setAppliedCoupon(undefined);
+      setCouponCode("");
+      const refreshed = await fetch("/api/store").then((r) => r.json());
+      setStore(refreshed);
 
       if (payment === "pix" && data.pix) {
         setPixOrder(order);
@@ -210,25 +239,19 @@ export default function HomePage() {
         setPixProvider(
           data.pix.provider === "mercadopago" ? "mercadopago" : "static"
         );
-        cart.clear();
-        setAppliedCoupon(undefined);
-        setCouponCode("");
         setPanel("pix");
-        const refreshed = await fetch("/api/store").then((r) => r.json());
-        setStore(refreshed);
         return;
       }
 
-      const msg = buildWhatsAppOrderMessage(order, store.settings);
-      const url = whatsappUrl(store.settings.whatsapp, msg);
-      cart.clear();
-      setAppliedCoupon(undefined);
-      setCouponCode("");
-      setPanel("none");
-      window.open(url, "_blank");
-      const refreshed = await fetch("/api/store").then((r) => r.json());
-      setStore(refreshed);
-      alert(`Pedido #${order.number} criado! Abrindo WhatsApp…`);
+      if (payment === "online") {
+        setDoneOrder(order);
+        setOnlineCheckoutUrl(data.checkout?.url ?? order.mpCheckoutUrl ?? "");
+        setPanel("online");
+        return;
+      }
+
+      setDoneOrder(order);
+      setPanel("done");
     } finally {
       setSubmitting(false);
     }
@@ -255,17 +278,39 @@ export default function HomePage() {
         customerConfirm: true,
       }),
     });
-    const msg =
-      buildWhatsAppOrderMessage(
-        { ...pixOrder, paymentStatus: "awaiting_confirmation" },
-        store.settings
-      ) +
-      "\n\n*Pagamento:* PIX — cliente confirmou o pagamento na plataforma." +
-      (pixCopy ? `\nCódigo PIX usado no pedido #${pixOrder.number}` : "");
+    setDoneOrder({ ...pixOrder, paymentStatus: "awaiting_confirmation" });
+    setPixOrder(null);
+    setPanel("done");
+  }
+
+  async function confirmOnlinePaid() {
+    if (!doneOrder || !store) return;
+    await fetch("/api/orders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: doneOrder.id,
+        paymentStatus: "awaiting_confirmation",
+        customerConfirm: true,
+      }),
+    });
+    setDoneOrder({ ...doneOrder, paymentStatus: "awaiting_confirmation" });
+    setPanel("done");
+  }
+
+  function sendToWhatsApp(order: Order) {
+    if (!store) return;
+    const extra =
+      order.payment === "pix"
+        ? "\n\nPedido finalizado na plataforma (PIX)."
+        : order.payment === "online"
+          ? "\n\nPedido finalizado na plataforma (pagamento online crédito/débito)."
+          : "\n\nPedido finalizado na plataforma.";
+    const msg = buildWhatsAppOrderMessage(order, store.settings) + extra;
     window.open(whatsappUrl(store.settings.whatsapp, msg), "_blank");
     setPanel("none");
-    setPixOrder(null);
-    alert("Pedido enviado! A loja vai conferir o PIX e preparar.");
+    setDoneOrder(null);
+    setOnlineCheckoutUrl("");
   }
 
   if (!store) {
@@ -451,6 +496,8 @@ export default function HomePage() {
                 {panel === "hours" && "Horários"}
                 {panel === "product" && selected?.name}
                 {panel === "pix" && "Pagar com PIX"}
+                {panel === "online" && "Pagamento online"}
+                {panel === "done" && "Pedido feito"}
               </h2>
               <button
                 type="button"
@@ -706,8 +753,8 @@ export default function HomePage() {
                       {(
                         [
                           ["pix", "PIX"],
+                          ["online", "Pagamento online"],
                           ["dinheiro", "Dinheiro"],
-                          ["cartao", "Cartão"],
                           ["na_entrega", "Na entrega"],
                         ] as const
                       ).map(([id, label]) => (
@@ -728,8 +775,77 @@ export default function HomePage() {
                     {payment === "pix" && (
                       <p className="mt-2 flex items-start gap-1.5 text-xs text-muted">
                         <QrCode className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
-                        Você vai pagar com QR Code / Pix Copia e Cola na próxima
-                        tela, dentro do app.
+                        Na próxima tela você paga com QR Code ou Pix Copia e Cola.
+                      </p>
+                    )}
+                    {payment === "online" && (
+                      <div className="mt-2 space-y-2">
+                        <p className="text-xs text-muted">
+                          Cadastre crédito ou débito e pague agora, na plataforma.
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(
+                            [
+                              ["credito", "Crédito"],
+                              ["debito", "Débito"],
+                            ] as const
+                          ).map(([id, label]) => (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setOnlineCardType(id)}
+                              className={`rounded-xl border px-3 py-2 text-sm ${
+                                onlineCardType === id
+                                  ? "border-accent bg-accent/10 text-accent-soft"
+                                  : "border-border bg-elevated"
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {payment === "dinheiro" && (
+                      <div className="mt-2 space-y-2 rounded-xl bg-elevated p-3">
+                        <p className="text-xs font-medium">Precisa de troco?</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setNeedsChange(false)}
+                            className={`rounded-xl border px-3 py-2 text-sm ${
+                              !needsChange
+                                ? "border-accent bg-accent/10 text-accent-soft"
+                                : "border-border bg-bg"
+                            }`}
+                          >
+                            Não
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNeedsChange(true)}
+                            className={`rounded-xl border px-3 py-2 text-sm ${
+                              needsChange
+                                ? "border-accent bg-accent/10 text-accent-soft"
+                                : "border-border bg-bg"
+                            }`}
+                          >
+                            Sim
+                          </button>
+                        </div>
+                        {needsChange && (
+                          <Field
+                            label="Troco para quanto?"
+                            value={cashChangeFor}
+                            onChange={setCashChangeFor}
+                            placeholder="Ex: 50"
+                          />
+                        )}
+                      </div>
+                    )}
+                    {payment === "na_entrega" && (
+                      <p className="mt-2 text-xs text-muted">
+                        Você paga quando o pedido chegar (ou na retirada).
                       </p>
                     )}
                   </div>
@@ -753,17 +869,13 @@ export default function HomePage() {
                     onClick={submitOrder}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-success py-3.5 font-semibold text-stone-950 disabled:opacity-60"
                   >
-                    {payment === "pix" ? (
-                      <>
-                        <QrCode className="h-5 w-5" />
-                        {submitting ? "Gerando PIX…" : "Pagar com PIX"}
-                      </>
-                    ) : (
-                      <>
-                        <MessageCircle className="h-5 w-5" />
-                        {submitting ? "Enviando…" : "Pedir no WhatsApp"}
-                      </>
-                    )}
+                    {submitting
+                      ? "Finalizando…"
+                      : payment === "pix"
+                        ? "Finalizar e pagar PIX"
+                        : payment === "online"
+                          ? "Finalizar e pagar online"
+                          : "Finalizar pedido"}
                   </button>
                   <button
                     type="button"
@@ -819,12 +931,81 @@ export default function HomePage() {
                     onClick={() => void confirmPixPaid()}
                     className="w-full rounded-xl bg-success py-3.5 font-semibold text-stone-950"
                   >
-                    Já paguei — enviar pedido
+                    Já paguei — continuar
                   </button>
                   <p className="text-[11px] text-muted">
-                    A loja confere o PIX no extrato. Com Mercado Pago ativo, a
-                    confirmação pode ser automática.
+                    Depois você envia o pedido no WhatsApp da loja.
                   </p>
+                </div>
+              )}
+
+              {panel === "online" && doneOrder && (
+                <div className="space-y-4 text-center">
+                  <p className="text-sm text-muted">
+                    Pedido{" "}
+                    <strong className="text-ink">#{doneOrder.number}</strong> ·{" "}
+                    {formatBRL(doneOrder.total)}
+                  </p>
+                  <p className="text-sm">
+                    Pague com{" "}
+                    {doneOrder.onlineCardType === "debito" ? "débito" : "crédito"}{" "}
+                    agora. Você pode cadastrar o cartão no checkout.
+                  </p>
+                  {onlineCheckoutUrl ? (
+                    <a
+                      href={onlineCheckoutUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex w-full items-center justify-center rounded-xl bg-accent py-3.5 font-semibold text-stone-950"
+                    >
+                      Pagar online
+                    </a>
+                  ) : (
+                    <p className="rounded-xl bg-elevated p-3 text-xs text-muted">
+                      Checkout de cartão ainda não está ligado (Mercado Pago). O
+                      pedido já está registrado na loja.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void confirmOnlinePaid()}
+                    className="w-full rounded-xl bg-success py-3.5 font-semibold text-stone-950"
+                  >
+                    Já paguei — continuar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPanel("done")}
+                    className="w-full py-2 text-sm text-muted"
+                  >
+                    Continuar sem confirmar pagamento
+                  </button>
+                </div>
+              )}
+
+              {panel === "done" && doneOrder && (
+                <div className="space-y-4 text-center">
+                  <p className="text-lg font-bold">Pedido #{doneOrder.number}</p>
+                  <p className="text-sm text-muted">
+                    Tudo certo na plataforma. Agora envie para a loja no
+                    WhatsApp.
+                  </p>
+                  {doneOrder.address && (
+                    <p className="text-sm">
+                      <strong>Entrega:</strong> {doneOrder.address}
+                    </p>
+                  )}
+                  <p className="text-sm">
+                    Total {formatBRL(doneOrder.total)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => sendToWhatsApp(doneOrder)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-success py-3.5 font-semibold text-stone-950"
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    Enviar no WhatsApp
+                  </button>
                 </div>
               )}
             </div>

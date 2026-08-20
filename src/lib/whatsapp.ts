@@ -22,14 +22,32 @@ export function buildWhatsAppOrderMessage(
   if (order.address) lines.push(`*Endereço:* ${order.address}`);
   if (order.tableId) lines.push(`*Mesa/comanda:* ${order.tableId}`);
   lines.push(`*Pagamento:* ${PAYMENT_LABEL[order.payment] ?? order.payment}`);
-  if (order.payment === "pix" && order.paymentStatus) {
-    const pixLabel: Record<string, string> = {
-      pending: "aguardando pagamento",
-      awaiting_confirmation: "cliente confirmou na plataforma — conferir extrato",
+  if (order.payment === "dinheiro" && order.cashChangeFor) {
+    const change = Math.max(0, order.cashChangeFor - order.total);
+    lines.push(
+      `*Troco:* para ${formatBRL(order.cashChangeFor)} (troco ${formatBRL(change)})`
+    );
+  } else if (order.payment === "dinheiro") {
+    lines.push("*Troco:* não precisa");
+  }
+  if (order.payment === "online" && order.onlineCardType) {
+    lines.push(
+      `*Cartão:* ${order.onlineCardType === "debito" ? "Débito" : "Crédito"}`
+    );
+  }
+  if (
+    (order.payment === "pix" || order.payment === "online") &&
+    order.paymentStatus
+  ) {
+    const payLabel: Record<string, string> = {
+      pending: "aguardando pagamento na plataforma",
+      awaiting_confirmation: "cliente confirmou na plataforma",
       paid: "confirmado",
       failed: "falhou",
     };
-    lines.push(`*Status PIX:* ${pixLabel[order.paymentStatus] ?? order.paymentStatus}`);
+    lines.push(
+      `*Status pagamento:* ${payLabel[order.paymentStatus] ?? order.paymentStatus}`
+    );
   }
   lines.push(`*Status:* ${STATUS_LABEL[order.status] ?? order.status}`);
   lines.push("");

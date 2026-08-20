@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  createMercadoPagoCheckout,
   createMercadoPagoPix,
   isMercadoPagoEnabled,
 } from "@/lib/mercadopago";
@@ -106,7 +107,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Carrinho vazio" }, { status: 400 });
   }
 
-  const payment = body.payment ?? "na_entrega";
+  const payment = body.payment === "cartao" ? "online" : (body.payment ?? "na_entrega");
+  const cashChangeFor =
+    payment === "dinheiro" && body.needsChange
+      ? Number(body.cashChangeFor)
+      : undefined;
+
+  if (payment === "dinheiro" && body.needsChange) {
+    if (!Number.isFinite(cashChangeFor) || (cashChangeFor ?? 0) <= totals.total) {
+      return NextResponse.json(
+        { error: "Informe um valor maior que o total para o troco" },
+        { status: 400 }
+      );
+    }
+  }
+
   const eligibleForLoyalty = totals.subtotal - totals.discount;
   const points = loyaltyPointsFor(eligibleForLoyalty, store.settings);
 
@@ -126,6 +141,12 @@ export async function POST(request: Request) {
     couponCode: coupon?.code,
     payment,
     paymentStatus: "pending",
+    cashChangeFor,
+    onlineCardType:
+      payment === "online" &&
+      (body.onlineCardType === "credito" || body.onlineCardType === "debito")
+        ? body.onlineCardType
+        : undefined,
     notes: body.notes,
     loyaltyPointsEarned: points,
   };
@@ -137,9 +158,17 @@ export async function POST(request: Request) {
     );
   }
 
+  if (order.fulfillment === "delivery" && !String(order.address ?? "").trim()) {
+    return NextResponse.json(
+      { error: "Informe o endereço para entrega" },
+      { status: 400 }
+    );
+  }
+
   let pix:
     | Awaited<ReturnType<typeof generatePixForOrder>>
     | undefined;
+  let checkout: { url: string } | undefined;
 
   if (payment === "pix") {
     try {
@@ -152,6 +181,22 @@ export async function POST(request: Request) {
         { error: e instanceof Error ? e.message : "Erro ao gerar PIX" },
         { status: 400 }
       );
+    }
+  }
+
+  if (payment === "online" && isMercadoPagoEnabled()) {
+    try {
+      const mp = await createMercadoPagoCheckout({
+        amount: order.total,
+        title: `${store.settings.name} — Pedido #${order.number}`,
+        externalReference: order.id,
+      });
+      if (mp) {
+        order.mpCheckoutUrl = mp.initPoint;
+        checkout = { url: mp.initPoint };
+      }
+    } catch (e) {
+      console.error("MP checkout:", e);
     }
   }
 
@@ -176,17 +221,17 @@ export async function POST(request: Request) {
   store.orderSeq = orderNumber;
   await writeStore(store);
 
-  return NextResponse.json({ order, settings: store.settings, pix });
+  return NextResponse.json({ order, settings: store.settings, pix, checkout });
 }
 
 export async function PATCH(request: Request) {
   const body = await request.json();
   const store = await readStore();
 
-  const isCustomerPixConfirm =
+  const isCustomerConfirm =
     body.paymentStatus === "awaiting_confirmation" && body.customerConfirm;
 
-  if (!isCustomerPixConfirm) {
+  if (!isCustomerConfirm) {
     const password = request.headers.get("x-admin-password");
     if (password !== store.settings.adminPassword) {
       return NextResponse.json({ error: "Senha inválida" }, { status: 401 });
@@ -198,9 +243,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
   }
 
-  if (isCustomerPixConfirm) {
-    if (order.payment !== "pix") {
-      return NextResponse.json({ error: "Pedido não é PIX" }, { status: 400 });
+  if (isCustomerConfirm) {
+    if (order.payment !== "pix" && order.payment !== "online") {
+      return NextResponse.json(
+        { error: "Confirmação só para PIX ou pagamento online" },
+        { status: 400 }
+      );
     }
     order.paymentStatus = "awaiting_confirmation";
   } else {

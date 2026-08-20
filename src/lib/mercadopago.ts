@@ -56,3 +56,46 @@ export async function createMercadoPagoPix(params: {
     status: data.status,
   };
 }
+
+/** Checkout para crédito/débito (cadastro do cartão e pagamento online). */
+export async function createMercadoPagoCheckout(params: {
+  amount: number;
+  title: string;
+  externalReference: string;
+}): Promise<{ id: string; initPoint: string } | null> {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+  if (!token) return null;
+
+  const res = await fetch("https://api.mercadopago.com/checkout/preferences", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      items: [
+        {
+          title: params.title,
+          quantity: 1,
+          currency_id: "BRL",
+          unit_price: Number(params.amount.toFixed(2)),
+        },
+      ],
+      external_reference: params.externalReference,
+      payment_methods: {
+        excluded_payment_types: [{ id: "ticket" }, { id: "atm" }],
+      },
+      statement_descriptor: "PEDIDO",
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Mercado Pago checkout: ${err}`);
+  }
+
+  const data = await res.json();
+  const initPoint = data.init_point || data.sandbox_init_point;
+  if (!initPoint) return null;
+  return { id: String(data.id), initPoint };
+}

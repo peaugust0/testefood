@@ -8,7 +8,12 @@ export type OrderStatus =
   | "entregue"
   | "cancelado";
 
-export type PaymentMethod = "pix" | "dinheiro" | "cartao" | "na_entrega";
+export type PaymentMethod =
+  | "pix"
+  | "online"
+  | "dinheiro"
+  | "na_entrega"
+  | "cartao"; // legado
 
 export interface OpeningHours {
   day: number; // 0=domingo
@@ -101,9 +106,13 @@ export interface Order {
   couponCode?: string;
   payment: PaymentMethod;
   paymentStatus?: PaymentStatus;
+  /** Valor que o cliente vai pagar em espécie (para calcular o troco). */
+  cashChangeFor?: number;
+  onlineCardType?: "credito" | "debito";
   pixCopyPaste?: string;
   pixTxId?: string;
   mpPaymentId?: string;
+  mpCheckoutUrl?: string;
   notes?: string;
   loyaltyPointsEarned?: number;
 }

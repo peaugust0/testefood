@@ -398,7 +398,9 @@ function OrderCard({
                   : "bg-elevated text-muted"
             }`}
           >
-            {PAYMENT_STATUS_LABEL[payStatus] ?? payStatus}
+            {order.payment === "pix" || order.payment === "online"
+              ? (PAYMENT_STATUS_LABEL[payStatus] ?? payStatus)
+              : PAYMENT_LABEL[order.payment]}
           </span>
         </div>
       </div>
@@ -416,15 +418,23 @@ function OrderCard({
       </p>
       <p className="mt-1 font-semibold text-accent-soft">
         {formatBRL(order.total)} · {PAYMENT_LABEL[order.payment]}
+        {order.payment === "online" && order.onlineCardType
+          ? ` (${order.onlineCardType === "debito" ? "débito" : "crédito"})`
+          : ""}
+        {order.payment === "dinheiro" && order.cashChangeFor
+          ? ` · troco p/ ${formatBRL(order.cashChangeFor)}`
+          : order.payment === "dinheiro"
+            ? " · sem troco"
+            : ""}
       </p>
-      {order.payment === "pix" && (
+      {(order.payment === "pix" || order.payment === "online") && (
         <div className="mt-2 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => onPayment(order.id, "paid")}
             className="rounded-lg bg-success/20 px-2 py-1 text-xs font-semibold text-success"
           >
-            Confirmar PIX recebido
+            Confirmar pagamento
           </button>
           <button
             type="button"
@@ -1439,6 +1449,13 @@ function PrintTicket({
             <strong>{formatBRL(order.total)}</strong>
           </div>
           <p className="mt-2 text-xs">Pagamento: {PAYMENT_LABEL[order.payment]}</p>
+          {order.payment === "dinheiro" && (
+            <p className="mt-1 text-xs">
+              {order.cashChangeFor
+                ? `Troco para ${formatBRL(order.cashChangeFor)}`
+                : "Sem troco"}
+            </p>
+          )}
           {order.notes && <p className="mt-1 text-xs">Obs: {order.notes}</p>}
         </div>
         <button

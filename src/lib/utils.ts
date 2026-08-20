@@ -120,14 +120,15 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export const PAYMENT_LABEL: Record<string, string> = {
   pix: "PIX",
+  online: "Pagamento online",
   dinheiro: "Dinheiro",
-  cartao: "Cartão",
-  na_entrega: "Na entrega/retirada",
+  na_entrega: "Pagamento na entrega",
+  cartao: "Pagamento online",
 };
 
 export const PAYMENT_STATUS_LABEL: Record<string, string> = {
-  pending: "Aguardando PIX",
-  awaiting_confirmation: "Cliente disse que pagou",
+  pending: "Aguardando pagamento",
+  awaiting_confirmation: "Cliente confirmou na plataforma",
   paid: "Pago",
   failed: "Falhou",
 };
