@@ -11,12 +11,21 @@ export type MpPixResult = {
   status: string;
 };
 
+/** Evita o Next substituir a env por vazio no build da Vercel. */
+function envValue(name: string): string {
+  return String(process.env[name] ?? "").trim();
+}
+
+export function getMercadoPagoToken(): string {
+  return envValue("MERCADOPAGO_ACCESS_TOKEN");
+}
+
 export function isMercadoPagoEnabled(): boolean {
-  return Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN?.trim());
+  return Boolean(getMercadoPagoToken());
 }
 
 function mpToken(): string {
-  return process.env.MERCADOPAGO_ACCESS_TOKEN?.trim() ?? "";
+  return getMercadoPagoToken();
 }
 
 function parseMpErrorBody(text: string): string {
@@ -101,8 +110,9 @@ export async function createMercadoPagoCheckout(params: {
   title: string;
   externalReference: string;
 }): Promise<{ id: string; initPoint: string } | null> {
-  const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+  const token = mpToken();
   if (!token) return null;
+  requireLiveToken(token);
 
   const res = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
